@@ -131,7 +131,5 @@ If you use this work, please cite:
 > Carnegie, Luca. _Do Machines Think Equally About Music?_ April 2025.  
 > [GitHub Repo](https://github.com/lcarnegie/song-classification)
 
----
-
-Would you also like me to help you quickly create a polished `requirements.txt` and a `.gitignore` you can drop into your repo?  
-It would make it even cleaner for when others clone and run it! 🚀 
+![Built with Quarto](https://img.shields.io/badge/Built%20With-Quarto-8a4fff?logo=quarto)
+![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)
