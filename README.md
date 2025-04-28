@@ -17,8 +17,6 @@ The repository is organized to allow complete and exact reproduction of the stud
 
 The study highlights the limitations of current machine learning approaches to both music generation and classification, suggesting directions for future research in music information retrieval and generative AI.
 
----
-
 ## Main Findings
 
 - The SVM model trained on human music failed to correctly classify any machine-generated song into the correct genre.
@@ -27,7 +25,6 @@ The study highlights the limitations of current machine learning approaches to b
 
 See the full discussion and analysis in the final paper: [`paper/paper.pdf`](paper/paper.pdf).
 
----
 
 ## Repository Structure
 
@@ -44,8 +41,6 @@ See the full discussion and analysis in the final paper: [`paper/paper.pdf`](pap
 ├── scripts/                # Python scripts for data processing, model training, feature extraction
 ├── README.md               # You're here
 ```
-
----
 
 ## Requirements
 
@@ -74,7 +69,6 @@ pip install -r requirements.txt
 
 _(Note: You may need to manually install `librosa` if not included.)_
 
----
 
 ## Reproduction Steps
 
@@ -127,14 +121,10 @@ Follow these steps to fully reproduce the paper’s results:
    quarto render paper/paper.qmd
    ```
 
----
-
 ## Statement on LLM Usage
 
 Aspects of the code and text were written with the assistance of GitHub Copilot and ChatGPT to improve efficiency.  
 All original ideas, experiment designs, and analyses are my own.
-
----
 
 ## Citation
 
