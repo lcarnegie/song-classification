@@ -3,10 +3,10 @@ title: "Do Machines Think Equally About Music?"
 subtitle: "Testing an SVM's Classification Ability on Machine-Generated Music"
 author: 
     - Luca Carnegie
-thanks: "Code and data are available at: [FILL THIS]. Many thanks to Periklis Andritsos for your supervision, guidance and excellent conversation."
+thanks: "Code, workflow and prompts are available at: https://github.com/lcarnegie/song-classification. Many thanks to Periklis Andritsos for your supervision, guidance and excellent conversation."
 date: today
 date-format: long
-abstract: "This paper demonstrates a systematic workflow of measuring how well a Music Generation Model, such as Facebook's MuseGen, has learned the patterns of a particular genre or style of music. First, several classifier models are trained in Python, including an SVM, K-nearest-neighbours, Random Forest, and XGBoost, with the SVM being the most balanced at classification across genres. Then, a smallest version of Facebook's MuseGen model is systematically prompted to generate music 'quintessentially' describing one of ten genres of music. Finally, the features of these music are extracted using Python and then individually inputted into the SVM model, with the trained model in this workflow setup unable to classify any of the generated music clips. This paper highlights the need for further work in how machine learn algorithms embed understanding about musical features like timbre and how machine generated music can impact existing music information retrieval systems, providing directions for future work in this important area. These points are particularly pertinent in light of extensive developments in machine-generated music."
+abstract: "This paper demonstrates a systematic workflow of measuring how well a Music Generation Model, such as Meta's MuseGen, has learned the patterns of a particular genre or style of music. First, several classifier models are trained in Python, including an SVM, K-nearest-neighbours, Random Forest, and XGBoost, with the SVM being the most balanced at classification across genres. Then, a smallest version of Facebook's MuseGen model is systematically prompted to generate music 'quintessentially' describing one of ten genres of music. Finally, the features of these music are extracted using Python and then individually inputted into the SVM model, with the trained model in this workflow setup unable to classify any of the generated music clips. This paper highlights the need for further work in how machine learn algorithms embed understanding about musical features like timbre and how machine generated music can impact existing music information retrieval systems, providing directions for future work in this important area. These points are particularly pertinent in light of extensive developments in machine-generated music."
 format: pdf
 number-sections: true
 bibliography: references.bib
@@ -31,7 +31,7 @@ from sklearn.preprocessing import LabelEncoder
 
 
 # change to correct directory 
-os.chdir("C:\\Users\\lucac\\Documents\\GitHub\\song-cluster")
+os.chdir("C:\\Users\\lucac\\Documents\\GitHub\\song-classification")
 
 # load the data
 classifier_data = pd.read_csv('data/analysis_data/classifier_data.csv')
@@ -42,17 +42,17 @@ musicgpt_features = pd.read_csv('data/analysis_data/musicgpt_features.csv')
 
 # Introduction {#sec-intro}
 
-The advent of machine learning was a transformative force in the field of music information systems. Through advanced algorithms, previously un-automatable tasks suddenly became automatable, opening up deeper and more useful insights about the nature of music and how it fits within what humans define as genre. While genre classification quickly became a canonical problem within the context of machine learning, the concept of a music's genre still carries social and cultural weight within discussions about music and the artists that make it. 
+The advent of machine learning was a transformative force in the field of music information systems. Through advanced algorithms, previously un-automatable tasks suddenly became automatable, opening up deeper and more useful insights about the nature of music and how it fits within the distinctly human concept of musical genre. While genre classification quickly became a canonical problem within the context of machine learning, the concept of a music's genre still carries social and cultural weight within discussions about music and the artists that make it. 
 
-Recently, AI-powered tools like Suno [@suno] have emerged, targeting consumers interested in "creating" their own music. This raises questions about how machines understand music, especially with generative models. While research-based creations like Meta's MuseGen [@musegen] have existed for years, tools like Suno adopt a more consumer-focused approach. But how does a word entered into a prompt box translate into the auditory representation humans understand as music? Do different artificial intelligence systems have different conceptualizations of commonly accepted human concepts of genre?
+Recently, AI-powered tools like Suno [@suno] have emerged, targeting consumers interested in "creating" their own music. This raises questions about how machines understand music, especially in the case of generative models such as Suno's. While more research-based proofs of concept like Meta's MuseGen [@musegen] have existed for years, tools like Suno adopt a more consumer-focused approach. But how does a word entered into a prompt box translate into the auditory representation humans understand as music? Do different artificial intelligence systems have different conceptualizations of commonly accepted human concepts of genre?
 
-To understand if there is a different between conceptualizations of genre between different machine learning systems, we train a several different machine learning algorithms in the task of predicting genre, based a dataset of the timbral audio features of songs across 10 genres. Then, we ask a small music generation model to create 'quintessential' representations of different genres of music, and test if the algorithm can accurately predict the genre based on extracted audio features.
+To understand if there is a different between conceptualizations of genre between different machine learning systems, we train several different machine learning algorithms in the task of predicting genre, based on the dataset of the timbral audio features of songs across 10 genres extract from the Free Music Archive [@fma]. Then, we ask the 'small' variant of Meta MuseGen to create 'quintessential' representations of different genres of music using systematic prompts, and test if the algorithm can accurately predict the genre based on extracted audio features.
 
 The most balanced classifier, a Support Vector Machine (SVM) model, was unable to guess the genre of any of the machine-generated tracks. It is unclear why is this. It could either be because of the perhaps due to the music generation model's inability to create music that follows patterns of any genre, or it may be because the SVM performs very poorly. In this case, the poor performance of the SVM inhibits deeper insight, but does signal that diffrent machine learning models "learn" the conceptualization of particular music genres and the features that make it up
 
 The prospect of different conceptions of music across models presents important implications for music information systems in the realms of copyright,  recommendation systems, and the future of musicology more broadly. 
 
-The remainder of this paper is structure as follows. @sec-data details how music is "measured" and the dataset used to train the models in genre classification. @sec-modelling describes each of the models trained and their performance in training. @sec-ai-music describes how the machine generated music was generated and how it's featured were extracted, and @sec-results then compares the predicting genre to the prompted genre. Finally @sec-disc discusses the implications for the results, as well as weaknesses of this approach and directions for future work. 
+The remainder of this paper is structure as follows. @sec-data details how music is "measured" and the dataset used to train the models in genre classification. @sec-modelling describes each of the models trained and their performance in training. @sec-ai-music describes how the machine generated music was generated and how it's featured were extracted, and @sec-results then compares the predicting genre to the prompted genre. Lastly, @sec-disc discusses the implications for the results, along with weaknesses of this approach and directions for future work. 
 
 
 # Data {#sec-data}

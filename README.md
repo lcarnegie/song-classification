@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository contains the analysis and clustering of songs based on their audio features. The project aims to identify patterns and group similar songs together to help understand musical preferences and potentially build recommendation systems.
+This repository contains the files and workflow used to write my paper 'Do Machines Think Equally About Music?". It exists so that you are able to exactly reproduce the steps I took to get the results I did in the paper. 
 
 ## File Structure
 
@@ -11,7 +11,7 @@ The repo is structured as:
 * **data/raw_data** contains the raw song data as obtained from music platforms or datasets.
 * **data/analysis_data** contains the cleaned and processed dataset that was constructed for analysis.
 * **models** contains fitted clustering models and their evaluation metrics.
-* **other** contains relevant literature, details about LLM chat interactions, and sketches.
+* **other** contains sketches and the prompts used to generate the music. 
 * **paper** contains the files used to generate the paper, including the Quarto document and reference bibliography file, as well as the PDF of the paper.
 * **scripts** contains the scripts used to download, clean, and analyze the song data.
 
