@@ -19,6 +19,16 @@ The study highlights the limitations of current machine learning approaches to b
 
 ---
 
+## Main Findings
+
+- The SVM model trained on human music failed to correctly classify any machine-generated song into the correct genre.
+- Results suggest a gap between machine-generated and human-composed music in terms of recognizable genre-specific patterns.
+- Larger models or more sophisticated prompts may improve future genre fidelity in music generation.
+
+See the full discussion and analysis in the final paper: [`paper/paper.pdf`](paper/paper.pdf).
+
+---
+
 ## Repository Structure
 
 ```
@@ -116,16 +126,6 @@ Follow these steps to fully reproduce the paper’s results:
    ```bash
    quarto render paper/paper.qmd
    ```
-
----
-
-## Main Findings
-
-- The SVM model trained on human music failed to correctly classify any machine-generated song into the correct genre.
-- Results suggest a gap between machine-generated and human-composed music in terms of recognizable genre-specific patterns.
-- Larger models or more sophisticated prompts may improve future genre fidelity in music generation.
-
-See the full discussion and analysis in the final paper: [`paper/paper.pdf`](paper/paper.pdf).
 
 ---
 
