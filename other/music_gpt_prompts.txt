@@ -1,0 +1,11 @@
+Prompts Used (per genre)
+
+- Classical Music: "A quintessential classical music song"
+- Electronic Music: "A quintessential electronic music song"
+- Experimental Music: "A quintessential experimental music song"
+- Folk Music: "A quintessential folk music song"
+- Hip Hop Music: "A quintessential hip hop music song"
+- Instrumental Music: "An instrumental music song"
+- Jazz Music: "A quintessential jazz music song"
+- Pop Music: "A quintessential pop music song"
+- Rock Music: "A quintessential rock music music song"

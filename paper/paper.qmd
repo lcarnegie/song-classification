@@ -1,0 +1,750 @@
+---
+title: "Do Machines Think Equally About Music?"
+subtitle: "Testing an SVM's Classification Ability on Machine-Generated Music"
+author: 
+    - Luca Carnegie
+thanks: "Code and data are available at: [FILL THIS]. Many thanks to Periklis Andritsos for your supervision, guidance and excellent conversation."
+date: today
+date-format: long
+abstract: "This paper demonstrates a systematic workflow of measuring how well a Music Generation Model, such as Facebook's MuseGen, has learned the patterns of a particular genre or style of music. First, several classifier models are trained in Python, including an SVM, K-nearest-neighbours, Random Forest, and XGBoost, with the SVM being the most balanced at classification across genres. Then, a smallest version of Facebook's MuseGen model is systematically prompted to generate music 'quintessentially' describing one of ten genres of music. Finally, the features of these music are extracted using Python and then individually inputted into the SVM model, with the trained model in this workflow setup unable to classify any of the generated music clips. This paper highlights the need for further work in how machine learn algorithms embed understanding about musical features like timbre and how machine generated music can impact existing music information retrieval systems, providing directions for future work in this important area. These points are particularly pertinent in light of extensive developments in machine-generated music."
+format: pdf
+number-sections: true
+bibliography: references.bib
+---
+
+```{python}
+#| label: setup
+#| echo: false
+#| warning: false
+#| message: false
+
+import pandas as pd 
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+from joblib import load
+import os
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+
+
+# change to correct directory 
+os.chdir("C:\\Users\\lucac\\Documents\\GitHub\\song-cluster")
+
+# load the data
+classifier_data = pd.read_csv('data/analysis_data/classifier_data.csv')
+classifier_data_top10 = pd.read_csv('data/analysis_data/classifier_data_top10.csv')
+classifier_data_head = pd.read_csv('data/analysis_data/classifier_data_head.csv')
+musicgpt_features = pd.read_csv('data/analysis_data/musicgpt_features.csv')
+```
+
+# Introduction {#sec-intro}
+
+The advent of machine learning was a transformative force in the field of music information systems. Through advanced algorithms, previously un-automatable tasks suddenly became automatable, opening up deeper and more useful insights about the nature of music and how it fits within what humans define as genre. While genre classification quickly became a canonical problem within the context of machine learning, the concept of a music's genre still carries social and cultural weight within discussions about music and the artists that make it. 
+
+Recently, AI-powered tools like Suno [@suno] have emerged, targeting consumers interested in "creating" their own music. This raises questions about how machines understand music, especially with generative models. While research-based creations like Meta's MuseGen [@musegen] have existed for years, tools like Suno adopt a more consumer-focused approach. But how does a word entered into a prompt box translate into the auditory representation humans understand as music? Do different artificial intelligence systems have different conceptualizations of commonly accepted human concepts of genre?
+
+To understand if there is a different between conceptualizations of genre between different machine learning systems, we train a several different machine learning algorithms in the task of predicting genre, based a dataset of the timbral audio features of songs across 10 genres. Then, we ask a small music generation model to create 'quintessential' representations of different genres of music, and test if the algorithm can accurately predict the genre based on extracted audio features.
+
+The most balanced classifier, a Support Vector Machine (SVM) model, was unable to guess the genre of any of the machine-generated tracks. It is unclear why is this. It could either be because of the perhaps due to the music generation model's inability to create music that follows patterns of any genre, or it may be because the SVM performs very poorly. In this case, the poor performance of the SVM inhibits deeper insight, but does signal that diffrent machine learning models "learn" the conceptualization of particular music genres and the features that make it up
+
+The prospect of different conceptions of music across models presents important implications for music information systems in the realms of copyright,  recommendation systems, and the future of musicology more broadly. 
+
+The remainder of this paper is structure as follows. @sec-data details how music is "measured" and the dataset used to train the models in genre classification. @sec-modelling describes each of the models trained and their performance in training. @sec-ai-music describes how the machine generated music was generated and how it's featured were extracted, and @sec-results then compares the predicting genre to the prompted genre. Finally @sec-disc discusses the implications for the results, as well as weaknesses of this approach and directions for future work. 
+
+
+# Data {#sec-data}
+
+To investigate the human-likeness of model-based music generation, the nature of audio sampling, measurement and classification is understood. Then, dataset of human-created music from the Free Music Archive [@fma] is downloaded, cleaned and transformed. Finally, the data is prepared to train various classifier models, of which the one with the best performance is used to classify the music.
+
+The Python programming language [@python], particularly the `pandas` module [@pandas] was used to clean and transform the data. The `matplotlib` [@matplotlib] and `seaborn` [@seaborn] modules were used to visualize aspects of the dataset during the exploration and model diagnostics phases. 
+
+## Measurement and Classification of Sound 
+
+Many metrics can be calculated to understand the rhythmic and timbral features of a piece of audio. They can be divided into two main areas: rhythmic metrics, which attempt to quantify aspects of repeated patterns like the beat or rhythm, or timbral metrics, which measure what the audio appears to "sound like" to a human listener. Timbre in music is a complex interplay of auditory attributes that distinguish different types of sound production, even when pitch, loudness, and duration remain constant. That said those aspects 
+
+To analyze sound, audio signals are typically sampled digitally at regular intervals, converting continuous acoustic waveforms into discrete values. These discrete samples allow computational methods to analyze sound by capturing amplitude changes over time, enabling the extraction of various metrics that quantify specific auditory characteristics. Sound itself can be quantified through various audio features, broadly grouped into timbral and non-timbral features. 
+
+Non-timbral features capture features of rhythm, pitch, and harmony inherent to an audio track. Rhythm in a music is measured by inferring various aspects of a piece through a metric called the onset signal strength. This metric is obtained by calculating a signal that has "high values at the onset of musical events" [@tzanetakis2011], such as the 'beat drop' of an intense electronic song, or the cadence of a Mozart Symphony. Measuring these events allows for the detection of reoccuring patterns, which can then be inferred into metrics like the tempo or "beat" of a piece of music. Within the realm of pitch and harmony, the most common representation of pitch is through the Pitch Class Profile, otherwise known as Chroma. This metric is composed of vectors that contain the individual occurences of specific musical pitches in region of the audio being measured. These representations can then be used to accomplish tasks like key and chord detection, though are less useful for genre classificatio, as is the focus of this work. 
+
+Timbral features, on the other hand, capture the "textural" qualities of sound. Timbral audio features are typically derived from short-time spectral analysis. They tend to be the most useful for genre classification tasks, as @tzanetakis2002 found early on. Key timbral features include Mel-Frequency Cepstral Coefficients (MFCCs), spectral centroid, spectral rolloff, spectral flux, and zero-crossing rate.
+
+MFCCs are psychoacoustically motivated coefficients representing the short-term power spectrum of sound. The computation involves applying the Fourier transform, converting the frequencies to the Mel scale, logarithmically scaling the amplitudes, and applying a discrete cosine transform (DCT) to decorrelate the coefficients. MFCCs provide a compact representation of the timbral qualities and are widely used due to their effectiveness in differentiating between speech, music, and other audio signals. Typically, after transformation a sound has around 40 transformed coefficients, but "in the 'classic' MFCC implementation the lower 13 coefficients are retained" [@tzanetakis2011], as the higher coefficients tend to add more noise than meaningful insight into the general characteristics of the sound being analyzed. 
+
+Spectral centroid measures the "center of gravity" of the sound spectrum, indicating the perceived brightness of a sound. It is calculated by weighting frequencies by their magnitudes and taking the average frequency. Higher spectral centroid values correlate with brighter, higher-frequency sounds, while lower values suggest duller, lower-frequency textures.
+
+Spectral rolloff quantifies the frequency below which a specific percentage (commonly 85%) of the total spectral energy resides. It characterizes the point in the frequency spectrum that separates the lower frequencies containing most energy from the higher frequencies, capturing perceived brightness and spectral distribution.
+
+Spectral flux represents the rate of change in the spectral content between successive frames. It calculates the squared difference between normalized magnitudes of consecutive spectra, thus effectively quantifying how rapidly timbre changes over time. High spectral flux indicates a dynamic timbral evolution, typical of rapidly changing audio signals.
+
+The zero-crossing rate (ZCR) measures the frequency at which the audio waveform crosses the zero amplitude axis. This feature is closely related to the noisiness of the sound, with higher zero-crossing rates generally indicative of noisier signals, such as percussion or certain speech phonemes. 
+
+As @tzanetakis2002, @chen2009, and @bhalke2017 found, timbral metrics allow for sophisticated and parsimonious audio analyses, allowing for efficient classification of genre across various genres of music, and so they are made central to the modelling strategy described in @sec-modelling
+
+## Dataset
+
+After understanding timbral features' centrality in genre classification, finding extensive audio feature data to train the classifier was then made of interest. A key requirement of this data is that all music sourced within it must be human generated, and so we use the Free Music Archive's (FMA's) collection [@fma]. The full archive contains 106,574 tracks across 163 subgenres, and was published in 2017, predating significant public interest in artificial music generation, so it is reasonably unlikely that any model-based music was incorporated into the dataset. While the FMA is technically made of audio tracks, which require large amounts of memory to store, Defferard et al. also extracted audio features from each of the tracks using Python's `librosa` module [@librosa], as well as provided metadata for each of the songs, particularly a unique ID, title, artist names, and primary genre of the music. 
+
+The data cleaning process began by loading raw audio feature data. From this, the key timbral features of each track were extractedd and consolidated systematically into a single, new dataset. The feature groups that were extracted were the first 16 mean values for the Mel-Frequency Cepstral Coefficients (MFCCs), and the means and variances for the spectral centroid, spectral rolloff, and zero crossing rates for each track. Spectral Flux was not one of the coefficients recorded by Defferard et al, and so is omitted from the feature set. 
+
+Following feature extraction, metadata associated with the tracks was loaded. The track ID, song title, artist name, and primary genre of the music was extracted, then merged with the features by cross-referencing song ID common to both datasets. Some rows did not have a primary genre, so they were dropped, leading to a dataset, leading to a dataset of 49,598 entries. A sample of the dataset is provided in @tbl-mfcc. 
+
+```{python}
+#| label: tbl-mfcc
+#| tbl-cap: "Cleaned FMA Dataset"
+#| echo: false
+#| warning: false
+#| message: false
+#| tbl-align: center
+
+# rename columns
+table = classifier_data_head.rename(columns={
+    'track_id':   'Track ID',
+    'title':      'Title',
+    'artist_name':'Artist',
+    'genre_top':  'Genre',
+    'mfcc_1':     'MFCC 1',
+    'mfcc_16':    'MFCC 16'
+})
+
+# select only metadata + MFCCs
+mfcc_table = table[[
+    'Track ID', 'Title', 'Artist', 'Genre', 'MFCC 1', 'MFCC 16'
+]]
+
+# insert ellipsis to indicate omitted columns
+mfcc_table.insert(5, '…', '…')
+mfcc_table.insert(7, '…', '…', allow_duplicates=True)
+
+mfcc_table.head()
+```
+
+```{python}
+#| label: tbl-spectral-1
+#| echo: false
+#| warning: false
+#| message: false
+#| tbl-align: center
+
+# rename columns (repeat or reuse 'table' with full set renamed above)
+spectral_table = classifier_data_head.rename(columns={
+    'centroid_mean':       'Spectral Centroid (Mean)',
+    'centroid_variance':   'Spectral Centroid (Var)',
+    'rolloff_mean':        'Spectral Rolloff (Mean)'
+})[[ 
+    'Spectral Centroid (Mean)','Spectral Centroid (Var)', 'Spectral Rolloff (Mean)'
+]]
+
+spectral_table.insert(0, '…', '…')
+spectral_table.insert(4, '…', '…', allow_duplicates=True)
+
+spectral_table.head()
+```
+
+```{python}
+#| label: tbl-spectral-2
+#| echo: false
+#| warning: false
+#| message: false
+#| tbl-align: center
+
+# rename columns (repeat or reuse 'table' with full set renamed above)
+spectral_table = classifier_data_head.rename(columns={
+    'rolloff_variance':    'Spectral Rolloff (Var)',
+    'zcr_mean':            'Zero Crossing Rate (Mean)',
+    'zcr_variance':        'Zero Crossing Rate (Var)'
+})[[ 
+    'Spectral Rolloff (Var)', 'Zero Crossing Rate (Mean)', 'Zero Crossing Rate (Var)'
+]]
+
+spectral_table.insert(0, '…', '…')
+
+spectral_table.head()
+```
+
+The dataset was then visualized to understand the distribution of the outcome variable, genre.
+
+```{python}
+#| label: fig-genre-bar
+#| fig-cap: "Song Counts per Genre, full cleaned FMA dataset"
+#| echo: false
+#| warning: false
+#| message: false
+#| tbl-align: center
+
+# Visualize genre distribution in classifier data
+plt.figure(figsize=(13, 7))
+sns.countplot(data=classifier_data, x='genre_top', order=classifier_data['genre_top'].value_counts().index, palette='viridis')
+plt.title('Genre Distribution in Classifier Data')
+plt.xlabel('Genre')
+plt.ylabel('Count')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show
+```
+
+As @fig-genre-bar shows, there exists a large amount of bias in the preliminary dataset toward certain primary genres.  A large amount of the observations tended to have a primary genre of Rock, followed by experimental and electronic music. The rest of the 16 primary genres have far less observations. Given this, the training data was refined by restricting the analysis to only the top 10 most frequently occurring genres. With respect to the table, this corresponds to the genres of: 
+
+```{python}
+#| label: tbl-genre-counts
+#| tbl-cap: "Top 10 Song Counts, by Genre"
+#| echo: false
+#| warning: false
+#| message: false
+#| tbl-align: center
+
+table_1 = classifier_data["genre_top"].value_counts().reset_index()
+table_1.columns = ['Genre', 'Count']
+
+table_1.head(10)
+```
+
+By reducing the number of classes to 10, the classification task is simplified and more targeted comparisons and analysis can be made between classifying human and machine-generated music. Though it is still certainly unbalanced, as seen in @tbl-genre-counts, class-weighting is utilized in the modelling process to account for the overrepresentation of certain genres. 
+
+With respect to the predictor variables of the classifier, while it would be possible to visualize each coefficient of the MFCC spectrum, centroids, and other features, each individual coefficient of a song's MFCCs and spectral features are not particularly useful in gleaning special insight on the dataset as a whole. Thus, visualizing the feature set is of adds little to understanding the general aspects of the auditory structure before modelling it and so it remains unvisualized. 
+
+# Modelling {#sec-modelling}
+
+```{python}
+#| label: train-test-split
+#| echo: false
+#| warning: false
+#| message: false
+
+# Train-test split (just using test data for the classification report)
+# Potential problem: the classifier might have seen some of the data during the training :/
+
+# Features vs target, use top 10 genre counts as mentioned 
+X = classifier_data_top10.drop(columns=['genre_top', 'track_id', 'title', 'artist_name'])
+y = classifier_data_top10['genre_top']
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.2,
+    stratify=y,
+    random_state=42
+)
+
+# Prep scaled values for SVM, KNN
+scaler = StandardScaler()
+X_test_scaled = scaler.fit_transform(X_test)
+
+```
+
+The goal of the modelling strategy was to predict a sound's genre based on features in the feature set. The key assumption of the model is that the audio features were extracted from a recording of a piece of music and thus have an inherent genre to them to be classified into. 
+
+Python's `scikit-learn` [@scikit] and `xgboost` [@xgboost] modules were used to implement several classification models, which were iteratively trained and tested before settling on the one with the best performance. Before training each model, the dataset was randomly split into a train-test split of 80% training to 20% testing. In order of least to best test performance, the Support Vector Machine (SVM), K-nearest neighbours, Random Forest, and Extreme Gradient Boosting were evaluated. Due to restrictions in computing power, Deep Learning models were not able to be tested, but were initially considered for this problem. The Support Vector Machine (SVM) model, while the least accurate overall, was the most balanced in prediction across genres, and so was then used to classify the artificially generated music described in @sec-results. Detailed diagnostics for each model tested are included in @sec-model-diag. 
+
+## Support Vector Machine 
+
+Support Vector Machines (SVMs) are a widely used supervised learning method for classification tasks, such as identifying the genre of a piece of music. SVMs work by finding the best possible boundary, or hyperplane, that separates songs from different genres based on the extracted timbral audio features. When the relationship between genres is too complex for a simple linear boundary, SVMs can apply kernel functions to capture more intricate, non-linear patterns in the data and find higher-dimensional boundaries between the features, effectively classifying them into genres. By focusing mainly on the most informative examples in the dataset, known as support vectors, SVMs achieve strong performance while avoiding overfitting the training data [@islp]. This makes them particularly effective for classifying music, where genre characteristics often overlap and vary in subtle ways.
+
+Both @chen2009 and @bhalke2017 demonstrated particular success in genre classification with SVM, each implementing them to predict genre from audio features to a high degree of accuracy. Bhalke et al. demonstrated nearly 96% accuracy on their music classification task, so it was expected that SVMs would exhibit similar good performance using the FMA data. The setup for our SVM training used a RBF kernel, with class-weighting enabled in order to account for the unbalancedness of the dataset. Results of testing on the test set are presented in @tbl-svm-results
+
+```{python}
+#| label: tbl-svm-results
+#| tbl-cap: "SVM Training Set Results"
+#| echo: false
+#| warning: false
+#| message: false
+#| tbl-align: center
+
+# load model 
+svm = load('models/svm_model.pkl')
+
+y_pred_svm = svm.predict(X_test_scaled)
+
+# Calculate accuracy and classification report
+accuracy = accuracy_score(y_test, y_pred_svm)
+report = classification_report(y_test, y_pred_svm, digits=3, output_dict=True)
+
+# Convert classification report to a DataFrame for better display
+report_df = pd.DataFrame(report).transpose().round(3)
+
+# Display the full dataframe
+report_df.head(30)
+```
+
+Surprisingly, this classifier had an accuracy of about 49%, which prompted the investigation of other classification methods for this task described later on. More surprisingly, however was how effectively the SVM learned the patterns of Classical music, despite it having the 2nd least amount of training examples in the dataset, achieving recall of nearly 80% and an F1 score of 0.6. Upon further reflection, this makes sense, as many subgenres of 'Classical' music have particular blends of instruments whose sounds combine together in predictable ways. An example of this within the context of the dataset is that of string quartets, whose timbre of the 2 Violins, Viola, and Cello come together in predictable ways across recordings, which the classifier then learns.    
+
+On the other hand, the genres of Jazz and Pop perform relatively poorly, even with class-weighting, with F1 scores of less than 20 percent. Ranking the relative feature importances and then retraining them on the top 10 most importance features did not improve the accuracy by much, either. Even so, the SVM trained is a decently balanced classification model. 
+
+## K-nearest neighbours
+
+Next, the K-nearest neighbours algorithm (KNN) was tested. @tzanetakis2002 had some modest success using the KNN classifier, with above-50%-accurate genre prediction based on audio features. KNN classifies a new song based on the genres of its K closest neighbors in the feature space, considering characteristics like tempo, rhythm patterns, and timbre. The number of neighbors, K, is a key parameter that balances flexibility and stability: smaller values of K make the model sensitive to local patterns, while larger values smooth out noise but may overlook finer distinctions. KNN does not build an explicit model but instead relies directly on the training data, making it highly adaptable but potentially sensitive to the choice and scaling of features [@islp]. In music genre classification, KNN is particularly useful when songs of the same genre tend to cluster closely together based on their properties. Given that music of a certain genre tends to "sound" similar in terms of timbre, it would make sense that KNN could work well at classifying genre based on how those features cluster together. 
+
+The setup for our KNN classifier was such that based on a $K = 25$, which was found to balance noise control with precision. Testing results are presented in @tbl-knn-results
+
+```{python}
+#| label: tbl-knn-results
+#| tbl-cap: "K-Nearest Neighbours Training Set Results"
+#| echo: false
+#| warning: false
+#| message: false
+#| tbl-align: center
+
+# load model 
+knn = load('models/knn_model.pkl')
+
+y_pred_knn = knn.predict(X_test_scaled)
+
+# Calculate accuracy and classification report
+accuracy = accuracy_score(y_test, y_pred_knn)
+report = classification_report(y_test, y_pred_knn, digits=3, output_dict=True)
+
+# Convert classification report to a DataFrame for better display
+report_df = pd.DataFrame(report).transpose().round(3)
+
+# Display the full dataframe
+report_df.head(30)
+```
+
+This classifier had an overall accuracy of about 54%, improving it slightly beyond what the SVM could predict overall. Classical Music, despite being less represented That said, given that classes could not be weighted, the lesser-represented classes suffered greatly in learning quality. So, from the SVM to KNN, we observed correct classification rates for Pop music go from 16.3% (SVM) to 6.8% (KNN) and Jazz from 14.7% to 3.4%, making this classifier much more biased than the SVM. More represented genres tended to perform even better than in the SVM, with correct Electronic music classification going from 51.9% to 55.3%.
+
+## Random Forest 
+
+Next, tree-based classification methods were then attempted. A Random Forest classifier was attempted first. 
+
+A Random Forest classifier builds a large collection of decision trees, each trained on a different subset of the data, and makes predictions by aggregating the results of all the trees, typically through majority voting by each tree. This approach reduces the risk of overfitting that is common with a single decision tree and improves the model’s overall accuracy and robustness [@islp]. In the context of music genre classification, Random Forests are particularly valuable because they can capture complex interactions between features such as the ones collected, while maintaining strong predictive performance.
+
+The Random Forest was implemented using class-weighting to address the biased data, with the final constructed tree having 22,023 nodes and a depth of 32. Classification results are presented in @tbl-rf-results. 
+
+```{python}
+#| label: tbl-rf-results
+#| tbl-cap: "Random Forest Training Set Results"
+#| echo: false
+#| warning: false
+#| message: false
+#| tbl-align: center
+
+# load model 
+rf = load('models/baseline_rf.pkl')
+
+y_pred_rf = rf.predict(X_test)
+
+# Calculate accuracy and classification report
+accuracy = accuracy_score(y_test, y_pred_rf)
+report = classification_report(y_test, y_pred_rf, digits=3, output_dict=True)
+
+# Convert classification report to a DataFrame for better display
+report_df = pd.DataFrame(report).transpose().round(3)
+
+# Display the full dataframe
+report_df.head(30)
+```
+
+While more accurate overall than both of the other models, at 56.4%, the less-represented genres in the dataset still suffer greatly, even with class-weighting in the random forest ensemble. While Jazz sees a modest increase in correct classification rates, from 3.4 to 8.5 percent, in absolute terms it compares much worse than the SVM at 16.3%. Similarly, this classifier performs the worst on Pop music out of all models tested, with a correct classification rate of 5.6%. 
+
+## Extreme Gradient Boosting
+
+Following this, Extreme Gradient Boosted Trees (XGBoost) was explored as a more advanced tree-based method. XGBoost models build an ensemble of decision trees sequentially, where each new tree focuses on correcting the errors made by the previous ones. By using a carefully designed error function and combining it with the use of regularization techniques, XGBoost can achieve both high predictive accuracy and strong control over overfitting. Overfitting is a key concern when using tree-based methods [@xgboost], since each individual tree could just learn the individual features of the training data, without actually learning the overall patterns. In the task of music genre classification, XGBoost can be particularly effective at capturing subtle patterns, meaning it could capture the subtle relationships between audio features more effectively than other models.
+
+The XGBoost model was also implemented using class-weighting to account for the biased data, with the final constructed ensemble consisting of 100 different decision trees. 
+
+```{python}
+#| label: tbl-xgb-results
+#| tbl-cap: "Extreme Gradient Boosted Tree Training Set Results"
+#| echo: false
+#| warning: false
+#| message: false
+#| tbl-align: center
+
+# load model 
+xgb = load('models/xgboost_model.pkl')
+
+# predict values
+y_pred_xgb_raw = xgb.predict(X_test)
+
+# unencode predicted labels
+le = LabelEncoder()
+le.fit(classifier_data_top10['genre_top'])
+y_pred_xgb = le.inverse_transform(y_pred_xgb_raw)
+
+# Calculate accuracy and classification report
+accuracy = accuracy_score(y_test, y_pred_xgb)
+report = classification_report(y_test, y_pred_xgb, digits=3, output_dict=True)
+
+# Convert classification report to a DataFrame for better display
+report_df = pd.DataFrame(report).transpose().round(3)
+
+# Display the full dataframe
+report_df.head(30)
+```
+
+This model further improved upon the Random Forest in overall accuracy, with a accuracy of 56.4% overall. XGBoost did marginally improve classification rates of the less represented genres of Jazz and Pop. Correct classification of jazz increased from 8.5% to 8.6% while Pop increased from 5.6% to 6.8%. That said, in absolute terms, this model is very biased toward better represented genres, despite it's higher overall accuracy. 
+
+From this experimentation process, it was found that the Extreme Gradient-Boosted Model was the most effective at classifying music in the FMA, overall. However, like the Random Forest and KNN classifiers, they tended to be very biased toward data that was more represented in the dataset, even with settings like class weighting being enabled. On the other hand, while less predictive overall, the Support Vector Machine was able to be more balanced across different genres, particularly Jazz and Pop where far fewer training examples were provided to the model. 
+
+A classification system should have a fair understanding of all genres to be classified, so for the sake of attempting to classify artificially generated music, the Support Vector Machine was used, given it's more balanced learning of all the genres in the dataset, in spite of how unbalanced it was. 
+
+# Machine-Generated Music {#sec-ai-music}
+
+Next, machine generated music to test the classifieron was sourced. Given limitations in compute power, having only a 4-core CPU, options were limited in terms of music models that could generate music of a decent quality to be tested. MusicGPT [@musicgpt] is a local application that allows smaller models, such as Meta's MuseGen models [@musegen] to run and generate small clips of music in resource constrained environements. For this setup, the default 'small' model was selected. 
+
+Nine prompts were systematically devised to prompt the model to generate music that would  have at least some of the general characteristics of the genre described to it. Notably, no track falling under an 'international' genre was generated as the category is too broad and the model could not effectively generate an intelligible piece. The prompts were written out as follows:
+
+- Classical Music: "A quintessential classical music song"
+- Electronic Music: "A quintessential electronic music song"
+- Experimental Music: "A quintessential experimental music song"
+- Folk Music: "A quintessential folk music song"
+- Hip Hop Music: "A quintessential hip hop music song"
+- Instrumental Music: "An instrumental music song"
+- Jazz Music: "A quintessential jazz music song"
+- Pop Music: "A quintessential pop music song"
+- Rock Music: "A quintessential rock music music song"
+
+These prompts were then fed one by one into the MusicGPT interface, which passed the prompt into the MuseGen model. Each prompt was then set to generate a clip lasting 30 seconds, which mimics the feature extraction setup of @fma. A new chat was created for each genre, to avoid the model confusing the context from the previous prompt with the prompt of the current song being generated. A total of nine .wav files were saved. 
+
+Next, like @fma, the `librosa` Python module was then used to extract the timbral features of each of the songs: MFCCs 1-16, and the means and variances of the spectral centroid, rolloff, and zero-crossing rate. The features of each machine-generated track were then assembled into a dataset identical to that of the cleaned FMA dataset, except for the columns of "track_id" and "title", given that these songs were machine generated and there were only 10 generated. Finally, each song's features was then passed into the SVM classifier and a predicted genre was obtained.
+
+# Results {#sec-results}
+
+```{python}
+#| label: comparison-setup
+#| echo: false
+#| warning: false
+#| message: false
+
+X_test = musicgpt_features.drop(["artist_name", "genre_top"], axis=1).values
+y_test_label = musicgpt_features['genre_top']
+y_test_values = musicgpt_features['genre_top'].values
+
+# import encoding table
+encoding_table = pd.read_csv('models/encoding_table.csv')
+
+# convert to dictionary mapping encoded class → label
+encoding_dict = dict(zip(encoding_table['class'], encoding_table['label']))
+
+# Scale test values for SVM
+scaler = StandardScaler()
+X_test_scaled = scaler.fit_transform(X_test)
+
+# Make predictions on the test set using the xgboost model
+y_pred_values = svm.predict(X_test_scaled)
+
+# Unencode the predicted labels
+y_pred_label = pd.Series(y_pred_values).map(encoding_dict).values
+```
+
+The following genres were predicted by the SVM model and subsequently compared against their actual genres.  
+
+```{python}
+#| label: tbl-comp-results
+#| tbl-cap: "Results of SVM Classification of Machine-Generated MusicGPT Songs"
+#| echo: false
+#| warning: false
+#| message: false
+#| tbl-align: center
+
+# Make a table of actual genres and predicted genres
+predictions_df = pd.DataFrame({'MusicGPT Genre': y_test_label, 'Predicted': y_pred_values})
+predictions_df.head(30)
+```
+
+As @tbl-comp-results clearly shows, the classifier could not classify any of the machine-generated songs into their respective genres.  
+
+It is unclear why the classification performance is so poor. On the one hand, the SVM classifier had an overall performance of 48.9% in the test data from the train/test spit, meaning that it is fairly likely the classifier made a mistake due to not enough training data for certain genres at the very least. The international genre of music is wide-ranging in style and sound and does not necessarily contain repetitive patterns; this could have 'confused' the classifier into learning the patterns of several genres under the same label. So, for example, when an 'Classical' song was passed into the classifier it could have just missed the cutoff by being slightly stylistically dissimilar, causing it to be classified as 'International', the genre of which can serve as a 'catch-all' genre for the classifier model when the features do not fit neatly into the patterns of any of the other genres.
+
+Interestingly, the prompted 'Pop' song was confused for Hip Hop music and the prompted 'Hip Hop' song was confused for Pop music by the classifier, which highlights the difference of how the patterns of these styles were encoded in the classifier and in the music generation model. 
+
+Given that the 'small' music generator size was used to generate music of each style, it could be that the music generated did not capture enough the stylistic elements of each genre enough to be classified properly. This is so, because the 'small' generation model size was used and so probably did not have enough training data to effectively capture all the nuances of the music's style. This can be noticed simply by taking a listen to some of the audio samples generated by the Small MusicGPT model and noticing how they do not sound very much like the genre they were instructed to 'quintessentially' describe as the prompts mentioned. 
+
+It could also be the the music generation model is not able to capture all the stylistic nuances as a whole, making the structure of the music generation model ineffective at understanding the underlying patterns of music. A comparison between music between a smaller and a larger model would be necessary to see if this is actually the case. 
+
+In any case, this setup demonstrates a systematic way of measuring the "human-ness" of a piece of machine-generated music, with the potential of different human-created music datasets, classifiers, music generation models and prompts being interchanged for the ones that are used here in order to measure how well a music generation model has learned a genre or genres of music.
+
+
+# Discussion {#sec-disc}
+
+## Human-Like vs. Machine-Generated Music: Are They Really Comparable?
+
+As observed in the experiment, none of the songs generated were able to be classified by the classifier into their correct genres, despite being classified on the exact same timbral features as songs that were extracted from the Free Music Archive. The support vector classifier cannot discern any pattern within the music that was generated. This indicates that the small MuseGen model does not appear to embed genre-specific features into its knowledge base in the same way that human music does. Otherwise, it would have been able to generate music that would have been correctly classified.
+
+Given that only the "small" model variant of Meta MuseGen was used to generate the investigated music, there is clear evidence that the small model, at least, generated "surface-level" music patterns that miss the deeper structural patterns in human-made music that the classifier was trained on. Given that the small model was designed particularly to operate in resource-constrained environments, it likely lacked the ability to learn rich style representations of each individual genre. Even if it was prompted to capture the general idea of each genre, the breadth of music that it was expected to produce was likely too much to expect for the model. 
+
+At least at the size of a small music generation model, it is clear to see that the music it is able to generate is incomparable to what is generated by human effort. Given the advent of sophisticated music generation tools such as Suno [@suno], it does not appear that this trend continues as Music generation models scale larger. 
+
+## The Failure of the SVM Classifier
+
+Interestingly, the SVM classifier completely failed at the classification task it was presented with; not a single song was classified correctly. The total misclassification of AI-generated music suggests that it is measurably different from human-made music, not just on a perceptual level as described by the extracted timbral features, but also in how those features present themselves statistically. 
+
+While this could be attributed to the fact that it was the worst-performing classifier overall, even a mediocre classifier should have identified some genres correctly, especially genres such as Rock, which constituted a large majority of the training examples. Given that a classifier quantitatively learns the various timbral patterns inherent in a piece of music through statistical means, it can offer a more objective way of measuring "authenticity" to a particular genre by learning the patterns inherent in the vast majority of songs within that genre—something a human would be incapable of or uninterested in doing.
+
+Automatic classifiers have shown similar performance to humans in music classification tasks. An investigation by @dong2018 showed that a Convolutional Neural Network model was able to exactly match human performance in music classification, which was around 70% accuracy. Future work with model designs such as Transformers could result in classifiers being better at humans at classifying music, leading to them being more objective measures of a music's fidelity to a particular genre.
+
+Although the SVM may have failed in this iteration of the setup, future work to improve a classifier's accuracy would allow for a more objective and efficient assessment of fidelity to a genre compared to human evaluation.
+
+## Impact of Model Size and Prompting on Music Quality
+
+Given this investigation, it is clear that the Small MuseGen model was not able to encode all of the patterns of each genre tested strongly enough into it's learning. In the field of LLMs, work by @kaplan2020 have shown a power-law relationship between the number of parameters a Transformer-based Large Language Model has and the perceived intelligence of responses. Given the Transformer based nature of some music generation models like @huang2019, perhaps a similar law exists, wherin a larger model size yields music whose prompted genre has higher fidelity to the genre described. 
+
+In a similar vein, while the each of the prompts were made to be simple and systematic for straightforward testing, perhaps more sophisticated prompting methods that described various aspects of the genre of music to be generated could have yielded results with higher genre fidelity. This could have included things like instruments to be used and comparisons to major artists, grounding the model to generate music that is most like the genre that was desired during prompting.
+
+
+## Broader Implications for Music Information Retrieval (MIR)
+
+This experiment showed the potential for automatic genre classification systems to fail on AI-generated content. Given this, the results present some important implications for Music Information Systems more broadly, such as on services like Spotify or Apple Music. 
+
+Copyright detection systems on services such as YouTube and Spotify currently use machine learning methods to discern sounds that may appear like copyrighted material or not. If artificially intelligent music generation software can create music that can foos these copyright systems, the legal system of copyright and the protection it affords artists is put at risk. If copyright laws can be subverted through widely available tools, such as improved versions of MuseGen or similar software, then artists lose the exclusive right to sell or license their material, creating issues of ownership and market structuring. Who "owns" the patterns embedded in a music generation model: the owner of the music used for training, or the maker of the model? 
+
+Machine learning methods are also used to recommend music to users within a particular genre or genres. But what makes one song be recommended more than another? While some of it has to do with popularity through the number of clicks, the clicks are ultimately driven through human enjoyment of the particular features of a particular piece of music. Given that features and measurements of popularity can be mined from songs on services like Spotify, it is perfectly reasonable that a savvy cultural analyst could attempt to correlate certain features with high popularity. If these results are then fed into a music generation model, it is conceivable that models could learn to optimize to "please" the recommendation algorithms, creating music that is more popular than any individual human or team of humans could write. 
+
+The previous two observations have more general implications for musicology in general. If music can be "optimized" for, like a financial portfolio, or human-like language generation, when does it cease to become music? With the advent of tools that can create music that closely resembles that of humans in a very short amount of time, we are left to ponder what is music? What are aesthetics and beauty in a world largely shaped by algorithms and optimization? Is there a limit to how much machines can mimic human creation before it ceases to be human? These are some of the important questions about auditory aesthetics that need to be considered, experimented on, and addressed as algorithms continue to take over more and more facets of our lives, individual decision making, and agency.  
+
+## Weaknesses and next steps
+
+There are several significant weaknesses to this investigation, and so this work  should be mainly considered as scaffolding for future work in this area. First, the small MuseGen Model that was used in this investigation was ineffective at capturing any of the patterns inherent to the genres that it was supposed to describe. Given that it was trained on a very small subset of music data, in order to be able to be computed locally on limited resources, the small model had limited stylistic fidelity to the genres it was supposed to describe and thus the music it generated was unable to be classified properly. 
+
+Similarly, the support vector machine classifier had very low overall performance (49%), likely due to the unbalancedness of the training dataset. Given it's poor performance, it is unclear if misclassification was because of the MuseGen modeling failing to generate stylistically faithful music, or whether the classifier was simply ineffective at classification. 
+
+Another weakness was that only timbral features were used in the classification process. While @tzanetakis2002 do describe timbral features' efficacy in helping with classification it is important to note that in their paper, rhythmic and harmonic features did improve classification performance in their work. This could have been similarly replicated here and would have likely improved the chances of the classifier being the confouding variable in this setup.
+
+Another important mistake to this setup was the lack of a human listening validation for each of the pieces to act as a baseline. The incorporation of such a step in this setup would have allow this setup to operate on a more experimental basis, and would have lended more weight to the results presented. 
+
+Finally, the use of only one generation per genre, combined with a faulty classifier meant that many of the insights drawn from this setup lack statistical power and may not be able to generalize to the general set of songs that could be theoretically generated by the MuseGen model. 
+
+These weaknesses present some important next steps in improving this design for more effective inference of the 'human-likeness' of machine generated music. First, larger music generation models, starting with MuseGen, but even incorporating models from other designers, could be used to generate higher fidelity and more stylistically sound audio that could be more easier for a classifier to classify into various genres. This, combined with generating many samples per genre and then each evaluating them would eliminate uncertainty in results and provide more robust insight into the effectiveness of genre pattern learning by these models. Approaching the problem from a different lens, perhaps classification is not the correct way to approach this problem. Perhaps future work in this area could involved comparing the embeddings of classifier models and music generation models and seeing how similar they are. Given that the weights of some models are openly available, perhaps seeing if any of the weights are similar across the two could be made of interest. 
+
+Given more compute resources, superior classification models could be trained and tested on. This could involved Convolutional Neural Networks (CNNs), which could be trained on spectrograms of audio files, or even simply the audio files themselves. Larger scale Transformer models could work equally well in this case and could be better at assessing the human-likeness of a machine-generated being of music. 
+
+Finally, incorporating the human element into this experiment would be of paramount importance should it be replicated again. Including subjective evalutation of genre by human participants would eliminate the the position of the classifier being the confounding variable and establish a baseline of which to test classification off of. 
+
+This setup should be seen as scaffolding for more sophisticated work in attempting to predict how "human-made" a piece of audio is likely to be. With the advent of models such as Suno, and it's accompanying avalanche of AI generated content, the ability to discern between machine-generated and human-made music increases by the day. 
+
+\newpage
+
+
+# References
+
+::: {#refs}
+:::
+
+\newpage
+
+\appendix
+
+
+# Appendix {-}
+
+# Full Model Diagnostics {#sec-model-diag}
+
+## Support Vector Machine
+
+```{python}
+#| label: tbl-svm-appendix
+#| tbl-cap: "SVM Training Set Results"
+#| echo: false
+#| warning: false
+#| message: false
+#| tbl-align: center
+
+y_pred = svm.predict(X_test_scaled)
+
+# Calculate accuracy and classification report
+accuracy = accuracy_score(y_test, y_pred_svm)
+report = classification_report(y_test, y_pred_svm, digits=3, output_dict=True)
+
+# Convert classification report to a DataFrame for better display
+report_df = pd.DataFrame(report).transpose().round(3)
+
+# Display the full dataframe
+report_df.head(30)
+```
+
+```{python}
+#| label: tbl-svm-confusion
+#| tbl-cap: "SVM Confusion Matrix"
+#| echo: false
+#| warning: false
+#| message: false
+
+# Compute confusion matrix for SVM
+cm = confusion_matrix(y_test, y_pred_svm)
+
+# Convert to DataFrame for display
+cm_df = pd.DataFrame(
+    cm,
+    index=svm.classes_,
+    columns=svm.classes_
+)
+
+# Display the confusion matrix with smaller font
+plt.figure(figsize=(10, 8))
+sns.heatmap(cm_df, annot=True, fmt='d', cmap='viridis', cbar=False, annot_kws={"size": 11})
+plt.title("SVM Confusion Matrix")
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.xticks(rotation=45, fontsize=8)
+plt.yticks(fontsize=8)
+plt.tight_layout()
+plt.show()
+```
+
+
+## K-Nearest Neighbours
+
+```{python}
+#| label: tbl-knn-appendix
+#| tbl-cap: "K-Nearest Neighbours Training Set Results"
+#| echo: false
+#| warning: false
+#| message: false
+#| tbl-align: center
+
+# predict on scaled test set
+y_pred = knn.predict(X_test_scaled)
+
+# Calculate accuracy and classification report
+accuracy = accuracy_score(y_test, y_pred_knn)
+report = classification_report(y_test, y_pred_knn, digits=3, output_dict=True)
+
+# Convert classification report to a DataFrame for better display
+report_df = pd.DataFrame(report).transpose().round(3)
+
+# Display the results
+report_df.head(30)
+```
+
+```{python}
+#| label: tbl-knn-confusion
+#| tbl-cap: "K-Nearest Neighbours Confusion Matrix"
+#| echo: false
+#| warning: false
+#| message: false
+
+# Compute confusion matrix for K-Nearest Neighbours
+cm = confusion_matrix(y_test, y_pred_knn)
+
+# Convert to DataFrame for display
+cm_df = pd.DataFrame(
+    cm,
+    index=knn.classes_,
+    columns=knn.classes_
+)
+
+# Display the confusion matrix with smaller font
+plt.figure(figsize=(10, 8))
+sns.heatmap(cm_df, annot=True, fmt='d', cmap='viridis', cbar=False, annot_kws={"size": 11})
+plt.title("K-Nearest Neighbours Confusion Matrix")
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.xticks(rotation=45, fontsize=8)
+plt.yticks(fontsize=8)
+plt.tight_layout()
+plt.show()
+```
+
+## Random Forest Classifier
+
+```{python}
+#| label: tbl-rf-appendix
+#| tbl-cap: "Random Forest Training Set Results"
+#| echo: false
+#| warning: false
+#| message: false
+#| tbl-align: center
+
+# Predict on test set
+y_pred = rf.predict(X_test)
+
+# Calculate accuracy and classification report
+accuracy = accuracy_score(y_test, y_pred_rf)
+report = classification_report(y_test, y_pred_rf, digits=3, output_dict=True)
+
+# Convert classification report to a DataFrame for better display
+report_df = pd.DataFrame(report).transpose().round(3)
+
+# Display the results
+report_df.head(30)
+```
+
+```{python}
+#| label: tbl-rf-confusion
+#| tbl-cap: "Random Forest Confusion Matrix"
+#| echo: false
+#| warning: false
+#| message: false
+
+# Compute confusion matrix for Random Forest
+cm = confusion_matrix(y_test, y_pred_rf)
+
+# Convert to DataFrame for display
+cm_df = pd.DataFrame(
+    cm,
+    index=rf.classes_,
+    columns=rf.classes_
+)
+
+# Display the confusion matrix with smaller font
+plt.figure(figsize=(10, 8))
+sns.heatmap(cm_df, annot=True, fmt='d', cmap='viridis', cbar=False, annot_kws={"size": 11})
+plt.title("Random Forest Confusion Matrix")
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.xticks(rotation=45, fontsize=8)
+plt.yticks(fontsize=8)
+plt.tight_layout()
+plt.show()
+
+```
+
+
+## Extreme Gradient Boosting Classifier
+
+```{python}
+#| label: tbl-xgb-appendix
+#| tbl-cap: "Extreme Gradient Boosted Tree Training Set Results"
+#| echo: false
+#| warning: false
+#| message: false
+#| tbl-align: center
+
+# Predict on test set
+y_pred = xgb.predict(X_test)
+
+# Decode numeric predictions back to genre names
+le = LabelEncoder()
+le.fit(classifier_data_top10['genre_top'])
+y_pred_xgb = le.inverse_transform(y_pred_xgb_raw)
+
+# Calculate accuracy and classification report
+accuracy = accuracy_score(y_test, y_pred_xgb)
+report = classification_report(y_test, y_pred_xgb, digits=3, output_dict=True)
+
+# Convert classification report to a DataFrame for better display
+report_df = pd.DataFrame(report).transpose().round(3)
+
+# Display the results
+report_df.head(30)
+```
+
+```{python}
+#| label: tbl-xgb-confusion
+#| tbl-cap: "Extreme Gradient Boosting Confusion Matrix"
+#| echo: false
+#| warning: false
+#| message: false
+
+# Compute confusion matrix for XGBoost
+cm = confusion_matrix(y_test, y_pred_xgb)
+
+# Convert to DataFrame for display
+cm_df = pd.DataFrame(
+    cm,
+    index=le.classes_,
+    columns=le.classes_
+)
+
+# Display the confusion matrix with smaller font
+plt.figure(figsize=(10, 8))
+sns.heatmap(cm_df, annot=True, fmt='d', cmap='viridis', cbar=False, annot_kws={"size": 11})
+plt.title("Extreme Gradient Boosting Confusion Matrix")
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.xticks(rotation=45, fontsize=8)
+plt.yticks(fontsize=8)
+plt.tight_layout()
+plt.show()
+```
