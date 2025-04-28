@@ -140,8 +140,7 @@ All original ideas, experiment designs, and analyses are my own.
 
 If you use this work, please cite:
 
-> Carnegie, Luca. _Do Machines Think Equally About Music?_ April 2025.  
-> [GitHub Repo](https://github.com/lcarnegie/song-classification)
+> Carnegie, Luca. _Do Machines Think Equally About Music?_ April 2025. https://github.com/lcarnegie/song-classification
 
 ![Built with Quarto](https://img.shields.io/badge/Built%20With-Quarto-8a4fff?logo=quarto)
 ![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)
