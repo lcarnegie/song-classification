@@ -80,27 +80,38 @@ Follow these steps to fully reproduce the paper’s results:
    - Unzip the `models.zip` file to access pretrained models.
    - The `data/raw_data/` folder contains compressed audio and extracted feature files.
 
-3. **Run Data Processing Scripts**  
+3. **Run Data Processing Scripts**
+ 
    In `scripts/`, run:
-   ```bash
-   python clean_fma_data.py
-   python generate_music_prompts.py
-   python extract_features.py
+   ```
+   01-clean-fma-data.ipynb,
+   02-test-data.ipynb, and
+   03-explore-data.ipynb
+   ```
+   to clean the data, test and validate it, and explore it like I did in the paper
+
+5. **Train Classifiers** (Optional)  
+   If you want to retrain models rather than using the provided ones, run:
+   ```
+   04.0-train-rf.ipynb
+   04.1-train-xgboost.ipynb
+   04.2-train-svm.ipynb
+   04.3-train-kmn.ipynb
    ```
 
-4. **Train Classifiers** (Optional)  
-   If you want to retrain models rather than using the provided ones:
-   ```bash
-   python train_models.py
+6. **Extract the Music Files**
+   If you want to re-extract the feature from the generated MuseGen Model Audio output, run:
+   ```
+   05-extract-audio-features.ipynb
    ```
 
-5. **Classify Generated Music**  
+8. **Classify Generated Music**  
    After generating feature sets for the machine-generated songs:
    ```bash
-   python classify_generated_music.py
+   06-predict.ipynb
    ```
 
-6. **Build the Paper (Optional)**  
+9. **Build the Paper (Optional)**  
    If you'd like to regenerate the paper PDF:
    ```bash
    quarto render paper/paper.qmd
