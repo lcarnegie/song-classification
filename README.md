@@ -1,7 +1,3 @@
-Here’s a much improved version of your README, based on what you wrote and based on the paper you uploaded:
-
----
-
 # Song Cluster
 
 ## Overview
